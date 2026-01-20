@@ -1,0 +1,46 @@
+# Build Pipeline for SQL Database
+
+# De *trigger* geeft aan waardoor deze pipeline automatisch uitgevoerd wordt. In dit geval: een *commit* tegen *main*
+trigger:
+  branches: 
+    include:
+      - main
+  paths:
+    include:
+      # We zijn hier redelijk specifiek in welke path-wijzigingen we in de trigger willen opnemen.
+      # Dit voorkomt dat je zelfgemaakte pipelines in dit project bij elke wijziging deze buid-pipeline.yml triggeren.
+      - src/sqldatabase
+      - pipeline-yaml/build-pipeline.yml
+
+
+# De *pool* geeft aan van wat voor VM-image gebruik gemaakt moet worden om deze pipeline uit te kunnen voeren. 
+pool:
+  name: Azure Pipelines
+  vmImage: windows-latest
+
+variables:
+  BuildConfiguration: 'Release'
+
+# Hier volgende daadwerkelijke "build-stappen". In dit geval hebben we een "eenvoudige" build pipeline - later zullen we kijken naar pipelines met meerdere "stages".
+steps:
+### De configuratie van een "task" hoef je niet te onthouden: er zitten visuele hulpmiddelen in Azure DevOps Pipelines ingebakken om *tasks* toe te voegen en de instellingen hiervoor te doen.
+- task: VSBuild@1
+  displayName: 'Build Data Warehouse'
+  inputs:
+    solution: 'src/AdventureWorksDW/AdventureWorksDW.sqlproj'
+    configuration: '$(BuildConfiguration)'
+
+- task: CopyFiles@2
+  displayName: 'Copy Files to: $(Build.ArtifactStagingDirectory)'
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'
+    Contents: '**/bin/$(BuildConfiguration)/**/*.dacpac'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    flattenFolders: true
+
+# De Artifact is het resultaat van deze pipeline. Omdat we deze publiceren, kan een deployment-pipeline deze weer oppikken om "uit te rollen" naar andere omgevingen.
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)'
+    artifact: 'SQLDW'
+    publishLocation: 'pipeline'
